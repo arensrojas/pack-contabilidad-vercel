@@ -428,7 +428,31 @@
         </div>
     </div>
 
-    <!-- Flow Payment Modal -->
+    <!-- Checkout Modal (Formulario de datos) -->
+    <div class="flow-overlay" id="checkoutOverlay">
+        <div class="flow-modal">
+            <h4 style="margin-bottom:20px"><i class="bi bi-person-check me-2"></i>Completa tus datos</h4>
+            <form id="checkoutForm" onsubmit="submitCheckout(event)">
+                <div class="mb-3">
+                    <label class="form-label" style="color:var(--text-muted);font-size:13px">📧 Email</label>
+                    <input type="email" id="checkoutEmail" class="form-control" placeholder="tu@email.com" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" style="color:var(--text-muted);font-size:13px">👤 Nombre Completo</label>
+                    <input type="text" id="checkoutName" class="form-control" placeholder="Tu nombre" required>
+                </div>
+                <div style="background:rgba(255,255,255,0.05);border-radius:12px;padding:12px;margin-bottom:20px">
+                    <small style="color:var(--accent)"><i class="bi bi-shield-check"></i> Tus datos están seguros con Flow</small>
+                </div>
+                <div style="display:flex;gap:10px">
+                    <button type="button" class="btn-checkout" style="background:#6c757d;flex:1" onclick="closeCheckoutModal()">Cancelar</button>
+                    <button type="submit" class="btn-checkout" style="flex:1"><i class="bi bi-lock"></i> Proceder al Pago</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Flow Payment Modal (Procesando) -->
     <div class="flow-overlay" id="flowOverlay">
         <div class="flow-modal">
             <i class="bi bi-lock" style="font-size:40px;color:var(--accent);margin-bottom:16px"></i>
@@ -480,7 +504,8 @@
   // =============================================
   // ESTADO & CONFIG
   // =============================================
-  let cart = [];
+  // Cargar carrito desde localStorage si existe
+  let cart = JSON.parse(localStorage.getItem('pack_digital_cart') || '[]');
   const WHATSAPP_NUMBER = '56912345678'; // ⚠️ Cambia por tu número real
 
   // Función segura para escapar HTML (previene XSS)
@@ -565,6 +590,9 @@
   }
 
   function updateCartUI() {
+    // Persistir carrito
+    localStorage.setItem('pack_digital_cart', JSON.stringify(cart));
+    
     const countEl = getEl('cartCount');
     const container = getEl('cartItems');
     const footer = getEl('cartFooter');
@@ -597,7 +625,7 @@
         <span>Total</span>
         <span>$${total.toLocaleString('es-CL')} CLP</span>
       </div>
-      <button class="btn-checkout" onclick="openFlowPayment()">
+      <button class="btn-checkout" onclick="openCheckoutModal()">
         <i class="bi bi-lock"></i> Pagar con Flow
       </button>
     `;
@@ -608,22 +636,47 @@
     if (overlay) overlay.classList.toggle('active');
   }
 
+  // Reemplazar botón de checkout anterior
+  function openFlowPaymentOld() {
+    openCheckoutModal();
+  }
+
   function closeCartOutside(e) {
     if (e.target === e.currentTarget) toggleCart();
   }
 
   // =============================================
-  // FLOW PAYMENT
+  // CHECKOUT & FLOW PAYMENT
   // =============================================
-  async function openFlowPayment() {
+  function openCheckoutModal() {
     if (!cart.length) {
       showToast('⚠️ Tu carrito está vacío');
       return;
     }
-    
-    const email = prompt('📧 Ingresa tu email para recibir los productos:') || 'cliente@email.com';
-    const name = prompt('👤 Ingresa tu nombre completo:') || 'Cliente';
+    const checkoutOverlay = getEl('checkoutOverlay');
+    if (checkoutOverlay) checkoutOverlay.classList.add('active');
+  }
 
+  function closeCheckoutModal() {
+    const checkoutOverlay = getEl('checkoutOverlay');
+    if (checkoutOverlay) checkoutOverlay.classList.remove('active');
+  }
+
+  async function submitCheckout(event) {
+    event.preventDefault();
+    const email = document.getElementById('checkoutEmail').value.trim();
+    const name = document.getElementById('checkoutName').value.trim();
+    
+    if (!email || !name) {
+      showToast('⚠️ Por favor completa todos los campos');
+      return;
+    }
+    
+    closeCheckoutModal();
+    await openFlowPayment(email, name);
+  }
+
+  async function openFlowPayment(email, name) {
     const flowOverlay = getEl('flowOverlay');
     if (flowOverlay) flowOverlay.classList.add('active');
 
@@ -633,8 +686,8 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           items: cart.map(c => ({ id: c.id, quantity: 1 })),
-          customerEmail: email.trim(),
-          customerName: name.trim()
+          customerEmail: email,
+          customerName: name
         })
       });
 
@@ -830,6 +883,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     handleScrollAnimations();
     loadProducts();
+    updateCartUI(); // Inicializar UI del carrito con datos de localStorage
     if (typeof bootstrap === 'undefined') console.warn('⚠️ Bootstrap no está cargado');
     console.log('✅ Pack Digital - Frontend inicializado');
   });
